@@ -27,11 +27,15 @@ class ProxyManager
 
     protected bool $enabled;
 
+    /** @var string|null The proxy selected for the current rotation step */
+    protected ?string $lastUsed = null;
+
     public function __construct()
     {
         $this->enabled = (bool) config('services.proxy.enabled', false);
 
         if (!$this->enabled) {
+            Log::debug('[ProxyManager] Proxy is DISABLED via config.');
             return;
         }
 
@@ -45,8 +49,10 @@ class ProxyManager
     {
         $path = config('services.proxy.file', storage_path('proxy.txt'));
 
+        Log::info("[ProxyManager] Loading proxies from: {$path}");
+
         if (!file_exists($path)) {
-            Log::warning("ProxyManager: proxy file not found at {$path}. Proxy disabled.");
+            Log::warning("[ProxyManager] Proxy file not found at {$path}. Proxy DISABLED.");
             $this->enabled = false;
             return;
         }
@@ -70,7 +76,7 @@ class ProxyManager
         }
 
         if (empty($this->proxies)) {
-            Log::warning("ProxyManager: proxy file is empty or contains no valid entries.");
+            Log::warning('[ProxyManager] Proxy file is empty or contains no valid entries. Proxy DISABLED.');
             $this->enabled = false;
             return;
         }
@@ -78,7 +84,7 @@ class ProxyManager
         // Randomize starting position to distribute load across processes
         $this->index = random_int(0, count($this->proxies) - 1);
 
-        Log::info("ProxyManager: loaded " . count($this->proxies) . " proxies from {$path}.");
+        Log::info('[ProxyManager] Loaded ' . count($this->proxies) . " proxies. Starting at index {$this->index}.");
     }
 
     /**
@@ -90,7 +96,20 @@ class ProxyManager
     }
 
     /**
-     * Get the next proxy URI in round-robin order.
+     * Peek at the next proxy without advancing the index.
+     * Useful for logging before the request is made.
+     */
+    public function current(): ?string
+    {
+        if (!$this->isEnabled()) {
+            return null;
+        }
+
+        return $this->proxies[$this->index % count($this->proxies)];
+    }
+
+    /**
+     * Get the next proxy URI in round-robin order and advance the index.
      */
     public function next(): ?string
     {
@@ -100,8 +119,17 @@ class ProxyManager
 
         $proxy = $this->proxies[$this->index % count($this->proxies)];
         $this->index++;
+        $this->lastUsed = $proxy;
 
         return $proxy;
+    }
+
+    /**
+     * Get the last proxy that was returned by next().
+     */
+    public function getLastUsed(): ?string
+    {
+        return $this->lastUsed;
     }
 
     /**
@@ -113,7 +141,7 @@ class ProxyManager
     }
 
     /**
-     * Get Guzzle-compatible options array for the current proxy.
+     * Get Guzzle-compatible options array for the next proxy.
      * Returns an empty array if proxy is disabled.
      */
     public function getOptions(): array

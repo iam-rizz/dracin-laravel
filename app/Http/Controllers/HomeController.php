@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Services\ProxyManager;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class HomeController extends Controller
 {
@@ -73,22 +74,47 @@ class HomeController extends Controller
     /**
      * Fetch semua provider secara PARALEL via Http::pool().
      * Pool berjalan concurrent → total waktu ≈ provider paling lambat (bukan jumlah).
-     * Proxy diterapkan pada setiap request di pool jika diaktifkan.
+     * Each request in the pool gets a different proxy (round-robin).
      */
     private function fetchAll(): array
     {
-        $proxyOpts = $this->proxy->isEnabled() ? $this->proxy->getOptions() : [];
+        $useProxy = $this->proxy->isEnabled();
+
+        // Get a different proxy for each request in the pool
+        $proxyFor = function () use ($useProxy): array {
+            return $useProxy ? $this->proxy->getOptions() : [];
+        };
+
+        $proxyLabel = $useProxy ? $this->proxy->current() : 'direct';
+        Log::info("[HomeController] fetchAll START — proxy: {$proxyLabel}, total proxies: {$this->proxy->count()}");
 
         $responses = Http::pool(fn ($pool) => [
-            $pool->as('featured')    ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/dramabox/trending"),
-            $pool->as('dramaBoxNew') ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/dramabox/foryou"),
-            $pool->as('reelShort')   ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/reelshort/foryou",  ['page' => 1]),
-            $pool->as('shortMax')    ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/shortmax/foryou"),
-            $pool->as('netShort')    ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/netshort/foryou",   ['page' => 1]),
-            $pool->as('melolo')      ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/melolo/trending"),
-            $pool->as('freeReels')   ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/freereels/homepage"),
-            $pool->as('dramaNova')   ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/dramanova/home", ['page' => 1]),
+            $pool->as('featured')    ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/dramabox/trending"),
+            $pool->as('dramaBoxNew') ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/dramabox/foryou"),
+            $pool->as('reelShort')   ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/reelshort/foryou",  ['page' => 1]),
+            $pool->as('shortMax')    ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/shortmax/foryou"),
+            $pool->as('netShort')    ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/netshort/foryou",   ['page' => 1]),
+            $pool->as('melolo')      ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/melolo/trending"),
+            $pool->as('freeReels')   ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/freereels/homepage"),
+            $pool->as('dramaNova')   ->timeout(10)->withOptions($proxyFor())->get("{$this->baseUrl}/dramanova/home", ['page' => 1]),
         ]);
+
+        // Log results per provider
+        $providers = ['featured', 'dramaBoxNew', 'reelShort', 'shortMax', 'netShort', 'melolo', 'freeReels', 'dramaNova'];
+        foreach ($providers as $key) {
+            $r = $responses[$key] ?? null;
+            if ($r instanceof \Throwable) {
+                Log::error("[HomeController] {$key}: EXCEPTION — {$r->getMessage()}");
+            } elseif ($r && method_exists($r, 'successful')) {
+                if ($r->successful()) {
+                    Log::info("[HomeController] {$key}: OK ({$r->status()}, " . strlen($r->body()) . " bytes)");
+                } else {
+                    Log::warning("[HomeController] {$key}: FAIL ({$r->status()})");
+                }
+            } else {
+                Log::warning("[HomeController] {$key}: NO RESPONSE");
+            }
+        }
 
         return [
             'featured'       => $this->parse($responses['featured']),

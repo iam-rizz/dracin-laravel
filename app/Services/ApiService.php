@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class ApiService
 {
@@ -43,7 +44,15 @@ class ApiService
         }
 
         // Cache miss → hit API
+        $proxyUsed = null;
         try {
+            $proxyUsed = $this->proxy->isEnabled() ? $this->proxy->current() : 'direct';
+
+            Log::info("[ApiService] GET {$endpoint}", [
+                'proxy'  => $proxyUsed,
+                'params' => $params,
+            ]);
+
             $response = $this->makeRequest(15)
                 ->get($this->baseUrl . $endpoint, $params);
 
@@ -51,20 +60,35 @@ class ApiService
                 $json = $response->json() ?? [];
                 $result = $this->normalize($json);
 
+                Log::info("[ApiService] OK {$endpoint}", [
+                    'proxy'  => $proxyUsed,
+                    'status' => $response->status(),
+                    'size'   => strlen($response->body()),
+                ]);
+
                 // Simpan cache reguler + stale (tidak pernah expire)
                 Cache::put($cacheKey, $result, $ttl);
-                Cache::forever($staleCacheKey, $result); // stale backup
+                Cache::forever($staleCacheKey, $result);
 
                 return $result;
             }
+
+            Log::warning("[ApiService] FAIL {$endpoint}", [
+                'proxy'  => $proxyUsed,
+                'status' => $response->status(),
+                'body'   => mb_substr($response->body(), 0, 200),
+            ]);
         } catch (\Throwable $e) {
-            // API gagal — coba pakai stale cache
+            Log::error("[ApiService] ERROR {$endpoint}", [
+                'proxy'   => $proxyUsed,
+                'message' => $e->getMessage(),
+            ]);
         }
 
         // Fallback ke stale data jika tersedia
         $stale = Cache::get($staleCacheKey);
         if ($stale !== null) {
-            // Perpanjang cache reguler selama 5 menit agar tidak spam API
+            Log::info("[ApiService] STALE fallback for {$endpoint}");
             Cache::put($cacheKey, $stale, 300);
             return $stale;
         }
@@ -77,16 +101,36 @@ class ApiService
      */
     public function getNoCache(string $endpoint, array $params = []): array
     {
+        $proxyUsed = null;
         try {
+            $proxyUsed = $this->proxy->isEnabled() ? $this->proxy->current() : 'direct';
+
+            Log::info("[ApiService] GET (no-cache) {$endpoint}", [
+                'proxy'  => $proxyUsed,
+                'params' => $params,
+            ]);
+
             $response = $this->makeRequest(20)
                 ->get($this->baseUrl . $endpoint, $params);
 
             if ($response->successful()) {
+                Log::info("[ApiService] OK (no-cache) {$endpoint}", [
+                    'proxy'  => $proxyUsed,
+                    'status' => $response->status(),
+                ]);
                 return $this->normalize($response->json() ?? []);
             }
 
+            Log::warning("[ApiService] FAIL (no-cache) {$endpoint}", [
+                'proxy'  => $proxyUsed,
+                'status' => $response->status(),
+            ]);
             return ['error' => 'API request failed', 'status' => $response->status()];
         } catch (\Throwable $e) {
+            Log::error("[ApiService] ERROR (no-cache) {$endpoint}", [
+                'proxy'   => $proxyUsed,
+                'message' => $e->getMessage(),
+            ]);
             return ['error' => $e->getMessage()];
         }
     }
