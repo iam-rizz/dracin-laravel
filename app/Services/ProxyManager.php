@@ -68,7 +68,7 @@ class ProxyManager
             }
 
             // Normalize bare host:port to http://host:port
-            if (!preg_match('#^(https?|socks[45])://#i', $line)) {
+            if (!preg_match('#^(https?|socks[45][ha]?)://#i', $line)) {
                 $line = 'http://' . $line;
             }
 
