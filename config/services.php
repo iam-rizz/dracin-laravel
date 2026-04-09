@@ -35,4 +35,25 @@ return [
         ],
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Proxy Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Controls the HTTP proxy used for outbound API requests to the drama
+    | content providers. Set PROXY_ENABLED=true and provide a proxy file
+    | containing one proxy URI per line.
+    |
+    | Supported formats in proxy file:
+    |   http://user:pass@host:port
+    |   socks5://host:port
+    |   host:port (treated as http)
+    |
+    */
+
+    'proxy' => [
+        'enabled' => env('PROXY_ENABLED', false),
+        'file'    => env('PROXY_FILE', storage_path('proxy.txt')),
+    ],
+
 ];

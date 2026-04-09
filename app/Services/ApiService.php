@@ -8,7 +8,23 @@ use Illuminate\Support\Facades\Cache;
 class ApiService
 {
     protected string $baseUrl = 'https://api.sansekai.my.id/api';
-    protected int $cacheTtl  = 1800; // 30 menit (naik dari 10 menit)
+    protected int $cacheTtl  = 1800; // 30 menit
+
+    public function __construct(protected ProxyManager $proxy) {}
+
+    /**
+     * Build an HTTP PendingRequest with optional proxy support.
+     */
+    protected function makeRequest(int $timeout = 15): \Illuminate\Http\Client\PendingRequest
+    {
+        $request = Http::timeout($timeout)->retry(2, 300);
+
+        if ($this->proxy->isEnabled()) {
+            $request = $request->withOptions($this->proxy->getOptions());
+        }
+
+        return $request;
+    }
 
     /**
      * GET dengan caching + stale fallback.
@@ -28,8 +44,7 @@ class ApiService
 
         // Cache miss → hit API
         try {
-            $response = Http::timeout(15)
-                ->retry(2, 300)
+            $response = $this->makeRequest(15)
                 ->get($this->baseUrl . $endpoint, $params);
 
             if ($response->successful()) {
@@ -63,8 +78,7 @@ class ApiService
     public function getNoCache(string $endpoint, array $params = []): array
     {
         try {
-            $response = Http::timeout(20)
-                ->retry(2, 300)
+            $response = $this->makeRequest(20)
                 ->get($this->baseUrl . $endpoint, $params);
 
             if ($response->successful()) {

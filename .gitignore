@@ -31,3 +31,4 @@ yarn-error.log
 !/storage/framework/views/.gitkeep
 !/storage/logs/.gitkeep
 !/storage/app/private/.gitkeep
+/storage/proxy.txt

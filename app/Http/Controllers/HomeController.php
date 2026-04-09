@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ProxyManager;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 
@@ -10,6 +11,8 @@ class HomeController extends Controller
     protected string $baseUrl  = 'https://api.sansekai.my.id/api';
     protected int    $cacheTtl = 1800;  // 30 menit cache reguler
     protected string $cacheKey = 'home_data_v4';
+
+    public function __construct(protected ProxyManager $proxy) {}
 
     public function index()
     {
@@ -36,7 +39,7 @@ class HomeController extends Controller
 
                 if (!empty(array_filter($fresh))) {
                     Cache::put($this->cacheKey, $fresh, $this->cacheTtl);
-                    Cache::forever($staleKey, $fresh); // stale永遠
+                    Cache::forever($staleKey, $fresh);
                 }
 
                 Cache::forget($locked);
@@ -70,18 +73,21 @@ class HomeController extends Controller
     /**
      * Fetch semua provider secara PARALEL via Http::pool().
      * Pool berjalan concurrent → total waktu ≈ provider paling lambat (bukan jumlah).
+     * Proxy diterapkan pada setiap request di pool jika diaktifkan.
      */
     private function fetchAll(): array
     {
+        $proxyOpts = $this->proxy->isEnabled() ? $this->proxy->getOptions() : [];
+
         $responses = Http::pool(fn ($pool) => [
-            $pool->as('featured')    ->timeout(10)->get("{$this->baseUrl}/dramabox/trending"),
-            $pool->as('dramaBoxNew') ->timeout(10)->get("{$this->baseUrl}/dramabox/foryou"),
-            $pool->as('reelShort')   ->timeout(10)->get("{$this->baseUrl}/reelshort/foryou",  ['page' => 1]),
-            $pool->as('shortMax')    ->timeout(10)->get("{$this->baseUrl}/shortmax/foryou"),
-            $pool->as('netShort')    ->timeout(10)->get("{$this->baseUrl}/netshort/foryou",   ['page' => 1]),
-            $pool->as('melolo')      ->timeout(10)->get("{$this->baseUrl}/melolo/trending"),
-            $pool->as('freeReels')   ->timeout(10)->get("{$this->baseUrl}/freereels/homepage"),
-            $pool->as('dramaNova')   ->timeout(10)->get("{$this->baseUrl}/dramanova/home", ['page' => 1]),
+            $pool->as('featured')    ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/dramabox/trending"),
+            $pool->as('dramaBoxNew') ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/dramabox/foryou"),
+            $pool->as('reelShort')   ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/reelshort/foryou",  ['page' => 1]),
+            $pool->as('shortMax')    ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/shortmax/foryou"),
+            $pool->as('netShort')    ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/netshort/foryou",   ['page' => 1]),
+            $pool->as('melolo')      ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/melolo/trending"),
+            $pool->as('freeReels')   ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/freereels/homepage"),
+            $pool->as('dramaNova')   ->timeout(10)->withOptions($proxyOpts)->get("{$this->baseUrl}/dramanova/home", ['page' => 1]),
         ]);
 
         return [

@@ -123,4 +123,17 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Block AI Crawlers
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, requests from known AI training bots and scrapers are
+    | rejected with a 403 response. Set to false if you want to allow
+    | AI crawlers to access your content.
+    |
+    */
+
+    'block_ai_crawlers' => env('BLOCK_AI_CRAWLERS', true),
+
 ];
