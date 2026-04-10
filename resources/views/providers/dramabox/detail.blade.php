@@ -33,9 +33,22 @@
 
             {{-- Meta Row --}}
             <div class="detail-meta">
-                @if($eps)<span class="meta-tag">📺 {{ $eps }} Episode</span>@endif
-                @if($year)<span class="meta-tag">📅 {{ $year }}</span>@endif
-                <span class="meta-tag">🎬 Drama Asia</span>
+                @if($eps)
+                <span class="meta-tag">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg>
+                    {{ $eps }} Episode
+                </span>
+                @endif
+                @if($year)
+                <span class="meta-tag">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    {{ $year }}
+                </span>
+                @endif
+                <span class="meta-tag">
+                    <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><polygon points="23,7 16,12 23,17"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                    Drama Asia
+                </span>
             </div>
 
             {{-- Tags / Genre --}}

@@ -1,17 +1,30 @@
 @extends('layouts.app')
 @php
+    // Detail API: {status, data: {shortPlayName, picUrl, totalEpisodes, ...}}
     $d = $detail;
-    $title = data_get($d, 'data.shortPlayName') ?? data_get($d, 'shortPlayName') ?? data_get($d, 'data.title') ?? 'Drama';
-    $cover = data_get($d, 'data.cover') ?? data_get($d, 'cover');
+    $data  = data_get($d, 'data', $d);
+    $title = data_get($data, 'shortPlayName') ?? data_get($data, 'name') ?? data_get($data, 'title') ?? 'Drama';
+    $cover = data_get($data, 'picUrl') ?? data_get($data, 'cover') ?? '';
+    $totalEps = data_get($data, 'totalEpisodes') ?? data_get($data, 'updateEpisode') ?? 0;
 
-    // Episodes from allepisode
-    $episodeList = data_get($episodes, 'data', data_get($episodes, 'result', data_get($episodes, 'list', [])));
-    $episodeList = is_array($episodeList) ? $episodeList : [];
+    // Episode API: {status, episode: {episodeNum, videoUrl: {video_480, video_720, video_1080}, locked, cover, duration}}
+    $ep = data_get($episodeData, 'episode', []);
+    $videoUrls = data_get($ep, 'videoUrl', []);
+    $hlsRaw = null;
+    if (is_array($videoUrls)) {
+        // Prefer 720p, fallback to 1080p, then 480p
+        $hlsRaw = $videoUrls['video_720'] ?? $videoUrls['video_1080'] ?? $videoUrls['video_480'] ?? null;
+    } elseif (is_string($videoUrls)) {
+        $hlsRaw = $videoUrls;
+    }
+    // Fallback: check direct keys
+    if (!$hlsRaw) {
+        $hlsRaw = data_get($ep, 'url') ?? data_get($ep, 'streamUrl') ?? data_get($ep, 'm3u8') ?? null;
+    }
 
-    $currentEp = collect($episodeList)->firstWhere(fn($e) =>
-        (int)(data_get($e, 'episode') ?? data_get($e, 'episodeNum') ?? data_get($e, 'ep') ?? 0) === (int)$episode
-    );
-    $hlsRaw = $currentEp ? (data_get($currentEp, 'url') ?? data_get($currentEp, 'streamUrl') ?? data_get($currentEp, 'videoUrl') ?? data_get($currentEp, 'm3u8')) : null;
+    $isLocked = data_get($ep, 'locked', false);
+    $epCover  = data_get($ep, 'cover') ?? $cover;
+
     // Use proxy for ShortMax HLS
     $proxyUrl = $hlsRaw ? route('shortmax.hls', ['url' => $hlsRaw]) : null;
 @endphp
@@ -25,12 +38,19 @@
 <div class="watch-layout">
     <div>
         <div class="player-container">
-            @if($proxyUrl)
-                <video id="vjsPlayer" class="video-js vjs-default-skin" controls autoplay playsinline style="width:100%;height:100%;" data-src="{{ $proxyUrl }}"></video>
+            @if($isLocked)
+                <div class="player-loading">
+                    <svg width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span class="spinner-text" style="margin-top:0.75rem;">Episode ini terkunci (berbayar).</span>
+                </div>
+            @elseif($proxyUrl)
+                <video id="vjsPlayer" class="video-js vjs-default-skin" controls autoplay playsinline style="width:100%;height:100%;"
+                    data-src="{{ $proxyUrl }}"
+                    @if($epCover) poster="{{ $epCover }}" @endif></video>
             @else
                 <div class="player-loading">
-                    <div class="spinner"></div>
-                    <span class="spinner-text">Video tidak tersedia untuk episode ini.</span>
+                    <svg width="48" height="48" fill="none" stroke="var(--text-muted)" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                    <span class="spinner-text" style="margin-top:0.75rem;">Video tidak tersedia untuk episode ini.</span>
                 </div>
             @endif
         </div>
@@ -38,22 +58,20 @@
             <h2 style="font-size:1rem;color:var(--cream);">{{ $title }} — Episode {{ $episode }}</h2>
             <div style="display:flex;gap:var(--gap-sm);">
                 @if($episode > 1)<a href="{{ route('shortmax.watch', ['id' => $shortPlayId, 'ep' => $episode-1]) }}" class="btn btn-ghost" style="padding:0.375rem 0.75rem;font-size:0.8rem;">← Prev</a>@endif
-                @if(count($episodeList) > $episode)<a href="{{ route('shortmax.watch', ['id' => $shortPlayId, 'ep' => $episode+1]) }}" class="btn btn-ghost" style="padding:0.375rem 0.75rem;font-size:0.8rem;">Next →</a>@endif
+                @if($episode < (int)$totalEps)<a href="{{ route('shortmax.watch', ['id' => $shortPlayId, 'ep' => $episode+1]) }}" class="btn btn-ghost" style="padding:0.375rem 0.75rem;font-size:0.8rem;">Next →</a>@endif
             </div>
         </div>
         <a href="{{ route('shortmax.detail', ['id' => $shortPlayId]) }}" class="btn btn-outline" style="font-size:0.8rem;padding:0.375rem 0.75rem;">← Detail Drama</a>
     </div>
     <div>
         <h3 style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:var(--gap-md);">Daftar Episode</h3>
-        @if(count($episodeList) > 0)
+        @if((int)$totalEps > 0)
         <div class="episode-grid">
-            @foreach($episodeList as $ep)
-                @php $epNum = (int)(data_get($ep,'episode') ?? data_get($ep,'episodeNum') ?? data_get($ep,'ep') ?? 0); @endphp
-                @if($epNum > 0)
-                <a href="{{ route('shortmax.watch', ['id' => $shortPlayId, 'ep' => $epNum]) }}"
-                   class="ep-btn {{ $epNum === (int)$episode ? 'active' : '' }}">{{ $epNum }}</a>
-                @endif
-            @endforeach
+            @for($i = 1; $i <= min((int)$totalEps, 200); $i++)
+                <a href="{{ route('shortmax.watch', ['id' => $shortPlayId, 'ep' => $i]) }}"
+                   class="ep-btn {{ $i === (int)$episode ? 'active' : '' }}">{{ $i }}</a>
+            @endfor
+            @if((int)$totalEps > 200)<span class="ep-btn" style="opacity:0.5;cursor:default;">+{{ (int)$totalEps - 200 }} lagi</span>@endif
         </div>
         @else <p style="color:var(--text-muted);font-size:0.8rem;">Tidak ada daftar episode.</p>@endif
     </div>

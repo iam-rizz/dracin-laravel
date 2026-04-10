@@ -40,9 +40,9 @@ class ShortMaxController extends Controller
         if (!$shortPlayId) return redirect()->route('shortmax.index');
 
         $detail = $this->service->detail($shortPlayId);
-        $episodes = $this->service->allEpisodes($shortPlayId);
+        $episodeData = $this->service->episode($shortPlayId, $episode);
 
-        return view('providers.shortmax.watch', compact('detail', 'episodes', 'shortPlayId', 'episode'));
+        return view('providers.shortmax.watch', compact('detail', 'episodeData', 'shortPlayId', 'episode'));
     }
 
     // HLS Proxy for ShortMax
