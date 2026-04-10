@@ -11,6 +11,9 @@
 
     $title  = data_get($vid, 'series_title') ?? data_get($d, 'data.title') ?? data_get($d, 'title') ?? 'Drama';
     $cover  = data_get($vid, 'series_cover') ?? data_get($d, 'data.cover') ?? data_get($d, 'cover') ?? '';
+    if ($cover && str_contains(strtolower($cover), '.heic')) {
+        $cover = 'https://wsrv.nl/?url=' . urlencode($cover) . '&output=webp';
+    }
     $desc   = data_get($vid, 'series_intro') ?? data_get($d, 'data.description') ?? data_get($d, 'data.abstract') ?? '';
     $eps    = data_get($vid, 'episode_cnt') ?? data_get($d, 'data.totalEpisodes') ?? '';
     $sStatus = data_get($vid, 'series_status');  // 1 = ongoing, 2 = complete (typical)

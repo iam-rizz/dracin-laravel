@@ -28,6 +28,9 @@
             $id    = data_get($item, 'book_id') ?? data_get($item, 'bookId') ?? data_get($item, 'id');
             $title = data_get($item, 'book_name') ?? data_get($item, 'bookName') ?? data_get($item, 'title');
             $thumb = data_get($item, 'thumb_url') ?? data_get($item, 'cover') ?? data_get($item, 'thumbnail') ?? data_get($item, 'first_chapter_cover');
+            if ($thumb && str_contains(strtolower($thumb), '.heic')) {
+                $thumb = 'https://wsrv.nl/?url=' . urlencode($thumb) . '&output=webp';
+            }
         @endphp
         @if($id)
         <a href="{{ route('melolo.detail', ['id' => $id]) }}" class="drama-card" style="display:block;text-decoration:none;">
