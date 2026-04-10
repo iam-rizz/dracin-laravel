@@ -137,13 +137,17 @@
                data_get($meloloTrending, 'data', [])));
     $meHeroItem = is_array($meBooks) && array_is_list($meBooks) && count($meBooks) > 0 ? $meBooks[0] : null;
     if ($meHeroItem) {
+        $meCover = data_get($meHeroItem, 'thumb_url') ?? data_get($meHeroItem, 'cover') ?? data_get($meHeroItem, 'thumbnail') ?? '';
+        if ($meCover && str_contains(strtolower($meCover), '.heic')) {
+            $meCover = 'https://wsrv.nl/?url=' . urlencode($meCover) . '&output=webp';
+        }
         $slides[] = [
             'provider'  => 'Melolo',
             'key'       => 'melolo',
             'tag'       => 'Trending',
             'color'     => 'var(--c-melolo)',
             'title'     => data_get($meHeroItem, 'book_name') ?? data_get($meHeroItem, 'title') ?? data_get($meHeroItem, 'book_title') ?? '',
-            'cover'     => data_get($meHeroItem, 'thumb_url') ?? data_get($meHeroItem, 'cover') ?? data_get($meHeroItem, 'thumbnail') ?? '',
+            'cover'     => $meCover,
             'desc'      => data_get($meHeroItem, 'abstract') ?? data_get($meHeroItem, 'description') ?? data_get($meHeroItem, 'introduction') ?? '',
             'id'        => data_get($meHeroItem, 'book_id') ?? data_get($meHeroItem, 'id'),
             'route'     => 'melolo.detail',
@@ -481,6 +485,9 @@
                 $id = data_get($item, 'book_id') ?? data_get($item, 'id');
                 $title = data_get($item, 'book_name') ?? data_get($item, 'title') ?? data_get($item, 'book_title');
                 $thumb = data_get($item, 'thumb_url') ?? data_get($item, 'cover') ?? data_get($item, 'thumbnail');
+                if ($thumb && str_contains(strtolower($thumb), '.heic')) {
+                    $thumb = 'https://wsrv.nl/?url=' . urlencode($thumb) . '&output=webp';
+                }
             @endphp
             @if($id)
             <a href="{{ route('melolo.detail', ['id' => $id]) }}" class="drama-card" style="display:block;text-decoration:none;">
